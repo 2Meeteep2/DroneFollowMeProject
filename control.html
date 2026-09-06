@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Follow-Me · Steuerung</title>
+<style>
+  :root {
+    --bg: #0c1210;
+    --panel: #121b18;
+    --line: #24332e;
+    --text: #e8efe9;
+    --dim: #7f9089;
+    --accent: #4fd1a5;
+    --danger: #e2694f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    display: flex; justify-content: center;
+  }
+  main {
+    width: 100%; max-width: 420px;
+    padding: 40px 24px; display: flex; flex-direction: column; gap: 18px;
+  }
+  h1 {
+    font-size: 15px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--dim); margin: 0 0 4px;
+  }
+  .status {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px; font-size: 13px; line-height: 1.8;
+  }
+  .status .dim { color: var(--dim); }
+  .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--dim); margin-right: 8px;
+  }
+  .dot.ok { background: var(--accent); }
+  .dot.bad { background: var(--danger); }
+  button {
+    font-family: inherit; font-size: 16px; font-weight: 600;
+    padding: 16px; border-radius: 10px; border: none;
+    cursor: pointer; letter-spacing: 0.02em;
+  }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #connect { background: #1c2b26; color: var(--text); border: 1px solid var(--line); }
+  #start { background: var(--accent); color: #06231a; }
+  #stop { background: var(--danger); color: #2a0f09; }
+  .row { display: flex; gap: 12px; }
+  .row button { flex: 1; }
+  .hint { font-size: 12px; color: var(--dim); line-height: 1.6; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>FOLLOW-ME — STEUERUNG</h1>
+    <div class="hint">Verbindet sich per Bluetooth mit dem Raspberry Pi und sendet Start-/Stop-Befehle. Läuft in Chrome oder Edge.</div>
+  </div>
+
+  <div class="status">
+    <div><span id="dotConn" class="dot"></span>Verbindung: <b id="connText">getrennt</b></div>
+    <div class="dim" id="statusText">Status vom Pi: –</div>
+  </div>
+
+  <button id="connect">Mit Drohne verbinden</button>
+
+  <div class="row">
+    <button id="start" disabled>Start</button>
+    <button id="stop" disabled>Stop / RTL</button>
+  </div>
+
+  <div class="hint">
+    "Start" arm't die Drohne und beginnt die Follow-Me-Schleife — nur drücken, wenn Mission-Planner-Vorflugcheck bereits gemacht und das Handy schon GPS sendet.<br><br>
+    "Stop / RTL" löst jederzeit einen kontrollierten Rückflug aus.
+  </div>
+
+  <script>
+    const SERVICE_UUID = '12345678-1234-5678-1234-56789abc0000';
+    const CTRL_CHAR_UUID = '12345678-1234-5678-1234-56789abc0001';
+    const STATUS_CHAR_UUID = '12345678-1234-5678-1234-56789abc0002';
+
+    let ctrlChar = null;
+
+    const connectBtn = document.getElementById('connect');
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const connText = document.getElementById('connText');
+    const statusText = document.getElementById('statusText');
+    const dotConn = document.getElementById('dotConn');
+
+    async function connect() {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE_UUID] }],
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        ctrlChar = await service.getCharacteristic(CTRL_CHAR_UUID);
+
+        try {
+          const statusChar = await service.getCharacteristic(STATUS_CHAR_UUID);
+          await statusChar.startNotifications();
+          statusChar.addEventListener('characteristicvaluechanged', (e) => {
+            statusText.textContent = 'Status vom Pi: ' + new TextDecoder().decode(e.target.value);
+          });
+        } catch (e) {
+          // Status-Notify ist optional — Steuerung funktioniert auch ohne.
+        }
+
+        connText.textContent = device.name || 'verbunden';
+        dotConn.className = 'dot ok';
+        startBtn.disabled = false;
+        stopBtn.disabled = false;
+
+        device.addEventListener('gattserverdisconnected', () => {
+          connText.textContent = 'getrennt';
+          dotConn.className = 'dot bad';
+          startBtn.disabled = true;
+          stopBtn.disabled = true;
+        });
+      } catch (e) {
+        statusText.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function send(command) {
+      if (!ctrlChar) return;
+      await ctrlChar.writeValue(new TextEncoder().encode(command));
+    }
+
+    connectBtn.addEventListener('click', connect);
+    startBtn.addEventListener('click', () => send('START'));
+    stopBtn.addEventListener('click', () => send('STOP'));
+  </script>
+</main>
+</body>
+</html>
