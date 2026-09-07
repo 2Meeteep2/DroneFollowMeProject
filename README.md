@@ -83,4 +83,4 @@ Die Software wurde nicht für einen vollständigen autonomen Flug freigegeben, s
 
 ## Entwicklungsstände
 
-Nicht final verwendete Ideen werden nicht als Teil der aktuellen Architektur dargestellt. Sie bleiben, wenn sie für den Arbeitsprozess relevant sind, unter `Docs/Entwicklungsstaende/` erhalten. Dazu gehört insbesondere der verworfene Bluetooth-Entwurf.
+Anstatt das alles auf dem Home Wlan läuft, ist der nächtse Schritt den Rasperry Pi als Hotspot zu nutzen das es überall verfügbar ist dann kann das Iphone sich mit dem Hotspot connecten und so die HTTPS seite öffnen und GPS-Signal senden.
